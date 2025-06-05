@@ -18,27 +18,30 @@ struct ZoomableModifier: ViewModifier {
                         .onAppear {
                             contentSize = proxy.size
                         }
+			.onChange(of: proxy.size.height) { _ in
+                            if proxy.size != contentSize {
+                                contentSize = proxy.size
+                            }
+                        }
                 }
-				.frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
+        	.frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
             }
             .animatableTransformEffect(transform)
-            .gesture(dragGesture, including: transform == .identity ? .none : .all)
-            .modify { view in
-                if #available(iOS 17.0, *) {
-                    view.gesture(magnificationGesture)
-                } else {
-                    view.gesture(oldMagnificationGesture)
-                }
-            }
-            .gesture(doubleTapGesture)
+            .gesture(combinedGestures)
     }
 
-    @available(iOS, introduced: 16.0, deprecated: 17.0)
-    private var oldMagnificationGesture: some Gesture {
+    private var combinedGestures: some Gesture {
+        SimultaneousGesture(
+            magnificationGesture,
+            dragGesture
+        )
+        .simultaneously(with: doubleTapGesture)
+    }
+
+    private var magnificationGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
-                let zoomFactor = 0.5
-                let scale = value * zoomFactor
+                let scale = value
                 transform = lastTransform.scaledBy(x: scale, y: scale)
             }
             .onEnded { _ in
@@ -46,30 +49,12 @@ struct ZoomableModifier: ViewModifier {
             }
     }
 
-    @available(iOS 17.0, *)
-    private var magnificationGesture: some Gesture {
-        MagnifyGesture(minimumScaleDelta: 0)
-            .onChanged { value in
-                let newTransform = CGAffineTransform.anchoredScale(
-                    scale: value.magnification,
-                    anchor: value.startAnchor.scaledBy(contentSize)
-                )
-
-                withAnimation(.interactiveSpring) {
-                    transform = lastTransform.concatenating(newTransform)
-                }
-            }
-            .onEnded { _ in
-                onEndGesture()
-            }
-    }
-
     private var doubleTapGesture: some Gesture {
-        SpatialTapGesture(count: 2)
-            .onEnded { value in
+        TapGesture(count: 2)
+            .onEnded {
                 let newTransform: CGAffineTransform =
                     if transform.isIdentity {
-                        .anchoredScale(scale: doubleTapZoomScale, anchor: value.location)
+                        .anchoredScale(scale: doubleTapZoomScale, anchor: CGPoint(x: contentSize.width / 2, y: contentSize.height / 2))
                     } else {
                         .identity
                     }
@@ -167,11 +152,6 @@ public extension View {
 }
 
 private extension View {
-    @ViewBuilder
-    func modify(@ViewBuilder _ fn: (Self) -> some View) -> some View {
-        fn(self)
-    }
-
     @ViewBuilder
     func animatableTransformEffect(_ transform: CGAffineTransform) -> some View {
         scaleEffect(
