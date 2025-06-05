@@ -19,6 +19,7 @@ struct ZoomableModifier: ViewModifier {
                             contentSize = proxy.size
                         }
                 }
+				.frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
             }
             .animatableTransformEffect(transform)
             .gesture(dragGesture, including: transform == .identity ? .none : .all)
@@ -161,6 +162,7 @@ public extension View {
                 )
             }
         }
+        .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
     }
 }
 
